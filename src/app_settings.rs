@@ -100,7 +100,28 @@ pub fn get_settings() -> AppSettings {
     // which creates a folder within the S3 bucket and uploads everything under that.
     let s3_bucket_name = env::var("S3_BUCKET_NAME").unwrap_or("turbo".to_owned());
 
-    let turbo_token = env::var("TURBO_TOKEN").ok().map(SecretString::from);
+    // An empty TURBO_TOKEN is treated as absent: it would otherwise configure
+    // authentication that no client could ever satisfy, since `parse_bearer_token`
+    // rejects an empty Bearer token.
+    let turbo_token = env::var("TURBO_TOKEN")
+        .ok()
+        .filter(|t| !t.is_empty())
+        .map(SecretString::from);
+
+    let allow_no_token = env::var("ALLOW_NO_TOKEN")
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+
+    // Without a token the auth middleware lets every request through, which is the
+    // server-side enabler of the CREEP cache-poisoning attack (CVE-2025-36852):
+    // one unauthenticated PUT overwrites a cached artifact and every later CI hit
+    // executes it. Fail loudly at startup instead of serving an open cache silently.
+    if turbo_token.is_none() && !allow_no_token {
+        panic!(
+            "TURBO_TOKEN is not set. Refusing to start without authentication. \
+             Set ALLOW_NO_TOKEN=true to explicitly disable authentication (not recommended for production)."
+        );
+    }
 
     AppSettings {
         host,

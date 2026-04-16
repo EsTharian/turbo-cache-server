@@ -21,6 +21,8 @@ struct AuthError {
 /// What the middleware decided about the incoming request.
 enum Outcome {
     /// No `TURBO_TOKEN` is configured, so the server accepts every request.
+    /// `get_settings` refuses to start in this state unless `ALLOW_NO_TOKEN=true`
+    /// was set, so reaching this arm means the operator opted out of auth.
     NoTokenConfigured,
     Valid,
     MissingHeader,
@@ -28,7 +30,8 @@ enum Outcome {
 }
 
 /// Rejects requests that do not carry the configured `TURBO_TOKEN` as a Bearer token.
-/// Lets every request through when no token is configured.
+/// Lets every request through when no token is configured, which startup only
+/// permits when `ALLOW_NO_TOKEN=true` acknowledged the open cache.
 pub async fn validate_turbo_token(
     req: ServiceRequest,
     next: Next<impl MessageBody + 'static>,
