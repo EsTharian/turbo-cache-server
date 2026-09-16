@@ -36,6 +36,9 @@ pub async fn spawn_app(config: Option<TestAppConfig>) -> TestApp {
 
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind to local address");
     let port = listener.local_addr().unwrap().port();
+    // The fork-local startup guard in get_settings() panics when TURBO_TOKEN is
+    // unset; the suite deliberately runs tokenless and sets the token per-test below.
+    unsafe { std::env::set_var("ALLOW_NO_TOKEN", "true") };
     let mut app_settings = get_settings();
     let bucket_name = "mock_bucket".to_owned();
 
